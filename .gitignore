@@ -1,0 +1,27 @@
+# R specific
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Data files — common formats
+data/
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.json
+*.rds
+*.RData
+*.rda
+*.parquet
+*.feather
+*.sav
+*.dta
+*.sas7bdat
+
+# Output / results (optional, remove if you want to track these)
+data_processed/
+figures/
+results/
