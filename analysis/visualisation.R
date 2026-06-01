@@ -24,15 +24,15 @@ suppressPackageStartupMessages({
 # -------------------------------
 # 1. Source pipeline scripts
 # -------------------------------
-source("R_scripts/01_build_df.R")
-source("R_scripts/02_plots.R")
+source("R_scripts/07_build_df.R")
+source("R_scripts/08_plots.R")
 
 # -------------------------------
 # 2. read model data
 # -------------------------------
 
-config <- yaml::read_yaml("config/study_config.yml") # config file with all parameters
-country="NL" # change country here"
+config <- yaml::read_yaml("study_config.yml") # config file with all parameters
+country="UK" # change country here"
 
 if(country=="UK"){
   aux_country="United Kingdom"

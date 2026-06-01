@@ -24,23 +24,18 @@ suppressPackageStartupMessages({
 })
 
 # -------------------------------
-# 1. Parse command line arguments
+# 1. Global parameters and options
 # -------------------------------
-option_list <- list(
-  make_option(c("-c", "--country"), type = "character", default = "UK",
-              help = "Country to analyze [default %default]"),
-  make_option(c("-b", "--begin"), type = "character", default = "2020-12-24",
-              help = "Beginning date (YYYY-MM-DD)"),
-  make_option(c("-n", "--nperiods"), type = "integer", default = 20,
-              help = "Number of 2-week periods [default %default]")
-)
+opt=list()
+opt$country <- "UK"
+opt$begin <- "2020-12-24"
+opt$nperiods <- 20
 
-opt <- parse_args(OptionParser(option_list = option_list))
 
 # -------------------------------
 # 2. Load config
 # -------------------------------
-config <- yaml::read_yaml("config/study_config.yml")
+config <- yaml::read_yaml("study_config.yml")
 
 if (!(opt$country %in% config$study$countries)) {
   stop(paste("Country", opt$country, "is not listed in config."))
@@ -80,6 +75,7 @@ periods <- data.frame(
   end = adjusted_start + weeks(2) * (1:opt$nperiods) - days(1)
 )
 
+# Print study setup
 cat("\n=====================================\n")
 cat("Study setup\n")
 cat("Country:", opt$country, "\n")
@@ -93,7 +89,7 @@ cat("\n")
 
 
 # -------------------------------
-# 5. Source pipeline scripts
+# 5. Source pipeline scripts/functions
 # -------------------------------
 source("R_scripts/01_load_data.R")
 source("R_scripts/02_contact_matrices.R")
@@ -117,10 +113,11 @@ raw_data <- load_data(country = opt$country,
 contact_mats <- build_contact_matrices(country = opt$country,
                                        raw_data = raw_data,
                                        age_groups = config$study$age_groups,
-                                       n_sample = n_sample)
+                                       n_sample = n_sample,
+                                       boot = config$study$boot)
 
-# (C) Incidence
-incidence <- get_incidence(country = opt$country,
+# (C) Incidence (one progress bar per period, it can take a while!)
+incidence <- get_incidence(country = opt$country,   
                            incidence_path = config$data_paths$incidence,
                            age_groups = config$study$age_groups)
 
@@ -128,7 +125,7 @@ incidence <- get_incidence(country = opt$country,
 rt <- get_rt(country = opt$country,
              rt_path = config$data_paths$rt)
 
-# (E) Harmonize
+# (E) Harmonize data
 inputs <- harmonize_data(measures_path = config$data_paths$measures,
                          country = opt$country,
                          contact_mats = contact_mats, 
@@ -148,5 +145,53 @@ saveRDS(periods, out_file_periods)
 out_file_inputs <- file.path(config$data_processed, paste0("inputs_", opt$country,"_",max(periods$period),"_",min(periods$start),"_to_",max(periods$start),".rds"))
 saveRDS(inputs, out_file_inputs)
 
-out_file_results <- file.path(config$results_path, paste0("results_", opt$country,"_",max(periods$period),"_",min(periods$start),"_to_",max(periods$start),".rds"))
+out_file_results <- file.path(config$data_processed, paste0("results_", opt$country,"_",max(periods$period),"_",min(periods$start),"_to_",max(periods$start),".rds"))
 saveRDS(results, out_file_results)
+
+save_opt <- file.path(config$data_processed, paste0("opt_", opt$country,"_",max(periods$period),"_",min(periods$start),"_to_",max(periods$start),".rds"))
+saveRDS(opt, save_opt)
+
+
+# tests 
+# Extract ngm into a long data frame
+ngm_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_long$from)
+ngm_long <- ngm_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+ngm_summary <- ngm_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# helper plot
+plot_ngm_heatmap_text <- function(df) {
+  df %>%
+    ggplot(aes(x = to, y = from, fill = m)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = label), size = 2.5, color = "black") +
+    scale_fill_gradient(low = "white", high = "#1565C0", name = "Mean NGM") +
+    facet_wrap(~ period, ncol = 5, labeller = label_both) +
+    labs(title = "NGM — Mean ± SD", x = "To", y = "From") +
+    theme_minimal(base_size = 11) +
+    theme(
+      axis.text.x      = element_text(angle = 45, hjust = 1),
+      strip.background = element_rect(fill = "grey90", color = NA),
+      panel.grid       = element_blank()
+    )
+}
+plot_ngm_heatmap_text(ngm_summary)
+

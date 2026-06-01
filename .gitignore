@@ -3,6 +3,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.RDataTmp
 *.Rproj
 
 # Data files — common formats

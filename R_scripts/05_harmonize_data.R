@@ -27,8 +27,7 @@ harmonize_data = function(measures_path,country,contact_mats, incidence, rt, per
   
   incidence <- incidence %>%
     group_by(period, agegroup) %>%
-    summarise(incidence = sum(cases, na.rm = TRUE)) %>%
-    group_by(period) %>%
+    summarise(incidence = sum(cases, na.rm = TRUE), .groups = "drop_last") %>%
     mutate(rel_incidence = incidence / sum(incidence, na.rm = TRUE)) %>%
     ungroup() %>%
     select(period, agegroup, rel_incidence)

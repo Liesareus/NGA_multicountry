@@ -21,8 +21,9 @@ study:
     - 0.90     # 50-59
     - 0.99     # 60-69
     - 0.99     # 70+
-  n_sample: 1
+  n_sample: 2
   m_effect: 0.15 #0.15
+  boot: TRUE # Whether to perform bootstrapping to estimate contact matrices
 
 data_paths:
   incidence: "data_raw/incidence/"

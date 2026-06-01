@@ -1,6 +1,6 @@
 # script to obtain social contact matrices for BE, UK and NL during the COVID-19 pandemic
 
-run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
+run_cm = function(participants, contacts, n_sample, aux_country,age_numeric, boot) {
   # Generates a sample of social contact matrices with the socialmixr package
   
   # INPUT: participant and contacts dataframe with the same structure as in socialmixr and the number of desired samples
@@ -31,25 +31,22 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
   
   dem=list()
   part=list()
-  
-  # boostrap?
-  boot=FALSE
+
   
   for (i in 1:n_sample) {
     # home
     set.seed(i)
     aux_home[[i]]=socialmixr::contact_matrix(survey_,
                                              countries = aux_country,
-                                             return.demography = TRUE,
-                                             age.limits = age_numeric,
-                                             estimated.participant.age = "sample",
-                                             estimated.contact.age = "sample",
-                                             missing.contact.age = "remove",
-                                             missing.participant.age = "remove",
-                                             weigh.age=TRUE, 
-                                             weigh.dayofweek=TRUE,
-                                             weight.threshold = 3,
-                                             sample.participants = boot,
+                                             return_demography = TRUE,
+                                             age_limits = age_numeric,
+                                             estimated_participant_age = "sample",
+                                             estimated_contact_age = "sample",
+                                             missing_contact_age = "remove",
+                                             missing_participant_age = "remove",
+                                             weigh_age=TRUE, 
+                                             weigh_dayofweek=TRUE,
+                                             sample_participants = boot,
                                              filter = list(cnt_home = 1))
     
     
@@ -60,16 +57,15 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
     set.seed(i)
     aux_school[[i]]=socialmixr::contact_matrix(survey_,
                                                countries = aux_country,
-                                               return.demography = TRUE,
-                                               age.limits = age_numeric,
-                                               estimated.participant.age = "sample",
-                                               estimated.contact.age = "sample",
-                                               missing.contact.age = "remove",
-                                               missing.participant.age = "remove",
-                                               weigh.age=TRUE, 
-                                               weigh.dayofweek=TRUE,
-                                               weight.threshold = 3,
-                                               sample.participants = boot,
+                                               return_demography = TRUE,
+                                               age_limits = age_numeric,
+                                               estimated_participant_age = "sample",
+                                               estimated_contact_age = "sample",
+                                               missing_contact_age = "remove",
+                                               missing_participant_age = "remove",
+                                               weigh_age=TRUE, 
+                                               weigh_dayofweek=TRUE,
+                                               sample_participants = boot,
                                                filter = list(cnt_school = 1))
     
     
@@ -81,16 +77,15 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
     set.seed(i)
     aux_work[[i]]=socialmixr::contact_matrix(survey_,
                                              countries = aux_country,
-                                             return.demography = TRUE,
-                                             age.limits = age_numeric,
-                                             estimated.participant.age = "sample",
-                                             estimated.contact.age = "sample",
-                                             missing.contact.age = "remove",
-                                             missing.participant.age = "remove",
-                                             weigh.age=TRUE, 
-                                             weigh.dayofweek=TRUE,
-                                             weight.threshold = 3,
-                                             sample.participants = boot,
+                                             return_demography = TRUE,
+                                             age_limits = age_numeric,
+                                             estimated_participant_age = "sample",
+                                             estimated_contact_age = "sample",
+                                             missing_contact_age = "remove",
+                                             missing_participant_age = "remove",
+                                             weigh_age=TRUE, 
+                                             weigh_dayofweek=TRUE,
+                                             sample_participants = boot,
                                              filter = list(cnt_work = 1))
     
     
@@ -102,16 +97,15 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
     set.seed(i)
     aux_transport[[i]]=socialmixr::contact_matrix(survey_,
                                                   countries = aux_country,
-                                                  return.demography = TRUE,
-                                                  age.limits = age_numeric,
-                                                  estimated.participant.age = "sample",
-                                                  estimated.contact.age = "sample",
-                                                  missing.contact.age = "remove",
-                                                  missing.participant.age = "remove",
-                                                  weigh.age=TRUE, 
-                                                  weigh.dayofweek=TRUE,
-                                                  weight.threshold = 3,
-                                                  sample.participants = boot,
+                                                  return_demography = TRUE,
+                                                  age_limits = age_numeric,
+                                                  estimated_participant_age = "sample",
+                                                  estimated_contact_age = "sample",
+                                                  missing_contact_age = "remove",
+                                                  missing_participant_age = "remove",
+                                                  weigh_age=TRUE, 
+                                                  weigh_dayofweek=TRUE,
+                                                  sample_participants = boot,
                                                   filter = list(cnt_transport= 1))
     
     
@@ -122,16 +116,15 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
     set.seed(i)
     aux_leisure[[i]]=socialmixr::contact_matrix(survey_,
                                                 countries = aux_country,
-                                                return.demography = TRUE,
-                                                age.limits = age_numeric,
-                                                estimated.participant.age = "sample",
-                                                estimated.contact.age = "sample",
-                                                missing.contact.age = "remove",
-                                                missing.participant.age = "remove",
-                                                weigh.age=TRUE, 
-                                                weigh.dayofweek=TRUE,
-                                                weight.threshold = 3,
-                                                sample.participants = boot,
+                                                return_demography = TRUE,
+                                                age_limits = age_numeric,
+                                                estimated_participant_age = "sample",
+                                                estimated_contact_age = "sample",
+                                                missing_contact_age = "remove",
+                                                missing_participant_age = "remove",
+                                                weigh_age=TRUE, 
+                                                weigh_dayofweek=TRUE,
+                                                sample_participants = boot,
                                                 filter = list(cnt_leisure= 1))
     
     
@@ -142,16 +135,15 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
     set.seed(i)
     aux_other[[i]]=socialmixr::contact_matrix(survey_,
                                               countries = aux_country,
-                                              return.demography = TRUE,
-                                              age.limits = age_numeric,
-                                              estimated.participant.age = "sample",
-                                              estimated.contact.age = "sample",
-                                              missing.contact.age = "remove",
-                                              missing.participant.age = "remove",
-                                              weigh.age=TRUE, 
-                                              weigh.dayofweek=TRUE,
-                                              weight.threshold = 3,
-                                              sample.participants = boot,
+                                              return_demography = TRUE,
+                                              age_limits = age_numeric,
+                                              estimated_participant_age = "sample",
+                                              estimated_contact_age = "sample",
+                                              missing_contact_age = "remove",
+                                              missing_participant_age = "remove",
+                                              weigh_age=TRUE, 
+                                              weigh_dayofweek=TRUE,
+                                              sample_participants = boot,
                                               filter = list(cnt_otherplace= 1))
     
     
@@ -239,9 +231,9 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric) {
 
 
 
-build_contact_matrices=function(country,raw_data,n_sample,age_groups){
+build_contact_matrices=function(country,raw_data,n_sample,age_groups, boot){
   
-  age_numeric <- as.numeric(sub("[-+].*", "", age_groups))
+  age_numeric <- as.numeric(sub("[-+].*", "", age_groups)) # extract the lower bound of the age groups and convert to numeric
   
   if(country=="UK"){
     aux_country="United Kingdom"
@@ -256,7 +248,7 @@ build_contact_matrices=function(country,raw_data,n_sample,age_groups){
   
   CM = participants %>%
         split(.$period) %>%
-        map(~run_cm(.x,contacts, n_sample,aux_country,age_numeric))
+        map(~run_cm(.x,contacts, n_sample,aux_country,age_numeric,boot=boot))
   
   return(CM)
 }

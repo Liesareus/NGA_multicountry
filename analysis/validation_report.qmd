@@ -1,0 +1,1138 @@
+---
+title: "NGA multicountry validation report"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    page-layout: full
+    self-contained: true
+editor: source
+params:
+  parameters_name: NULL
+---
+
+
+
+```{r, include=FALSE}
+# Get wd ------------------------------------------------------------------
+
+setwd(rprojroot::find_rstudio_root_file())
+
+# Load config -------------------------------------------------------------
+
+source("local.config.R")
+source("config.R")
+
+# Read parameters ---------------------------------------------------------
+
+source("parameters.R")
+
+# Define parameters ---------------------------------------------------------
+
+#param <- parameters[["test1"]]
+param <- parameters[[params$parameters_name]]
+
+# Import results ----------------------------------------------------------
+pop_dt <- readRDS(file = file.path(folders$p_data,param$simulation_name, "population_data.rds"))
+counts_dt <- readRDS(file = file.path(folders$p_data,param$simulation_name, "daily_counts.rds"))
+summary_daily_counts <- readRDS(file = file.path(folders$p_data,param$simulation_name, "summary_daily_counts.rds"))
+cc_dt <- readRDS(file = file.path(folders$p_data,param$simulation_name, "case_control_data.rds"))
+transition_dt <- readRDS(file = file.path(folders$p_data,param$simulation_name, "transition_dt.rds"))
+summary_transition_dt <- readRDS(file = file.path(folders$p_data,param$simulation_name, "summary_transition_dt.rds"))
+  
+
+# Colors ----------------------------------------------------------
+mycolors <- c("#4B556B","#C16069","#E89F1B","#8698BF","#F07B87","#BEA372")
+
+# Theme ----------------------------------------------------------
+theme_plot <- theme(# Background completely blank
+                    plot.background  = element_blank(),
+                    panel.background = element_blank(),
+                    panel.grid       = element_blank(),
+                    # Only x and y axis lines visible, in black
+                    axis.line        = element_line(colour = "black"),
+                    axis.ticks       = element_line(colour = "black"),
+                    axis.text        = element_text(colour = "black"),
+                    axis.title       = element_text(colour = "black"),
+                    # Legend
+                    legend.background = element_blank(),
+                    legend.key        = element_blank(),
+                    legend.position   = "top",
+                    legend.title = element_blank(),
+                    # Title
+                    plot.title = element_text(face = "bold"))
+theme_facet <- theme_plot +
+  theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5),
+        strip.background = element_rect(colour = "black", fill = NA),
+        strip.text = element_text(face = "bold"))
+
+# n pages for facets --------------------------------------------
+n_col <- 4
+n_row <- 4
+n_runs_print <- n_col*n_row   # for the total number of runs = param$n_runs
+n_pages <- ceiling(n_runs_print/(n_col*n_row))
+
+
+```
+
+
+# Scenario: `r param$simulation_name`
+
+`r param$simulation_desc`
+
+```{r scenario-info, echo = FALSE}
+scenario_info <- data.frame(
+  Parameter = c(
+    # Population
+    "Population size",
+    "Simulation length",
+    # Vaccination
+    "Vaccination coverage",
+     "Vaccination start day",
+     "Vaccination length (days)",
+     "Daily vaccination quota",
+    # Infections
+    "Reproduction number variant A",
+    "Relative advantage of variant B over A",
+    "Initial infected variant A",
+    "Time of introduction of variant A",
+    "Initial infected variant B",
+    "Time of introduction of variant B",
+    # Recovery
+    "Recovery rate",
+    # Vaccine effectiveness
+    "VE against variant A",
+    "VE against variant B",
+    "Vaccine waning rate against variant A",
+    "Vaccine waning rate against variant B",
+    "Ramp-up period",
+    # CC study
+    "Number of controls per case"
+    ),
+  
+  Value = c(param$N,
+            param$sim_length,
+            scales::percent(param$vacc_cov),
+            param$vacc_start,
+            param$vacc_length,
+            round(param$vacc_cov * param$N / param$vacc_length),
+            param$R_A,
+            param$rel_RB,
+            param$I0_A,
+            param$T0_A,
+            param$I0_B,
+            param$T0_B,
+            param$recov_rate,
+            param$VE_A,
+            param$VE_B,
+            param$WA,
+            param$WB,
+            param$d,
+            param$n_controls),
+  group = c(
+    rep(param$simulation_name,2),
+    rep("Vaccination",4),
+    rep("Infections",6),
+    rep("Recovery",1),
+    rep("Vaccine effectiveness",5),
+    rep("Case-control study",1)
+  ))
+            
+tab_scenario_info <- gt(scenario_info, groupname_col = "group") %>%
+  tab_header(title    = "Simulation parameters") %>%
+  cols_label(Parameter = "Parameter",
+             Value     = "Value") %>%
+  cols_align(align   = "left",   columns = Parameter) %>%
+  cols_align(align   = "center", columns = Value) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_row_groups()) %>%
+  tab_options(
+    table.border.top.style    = "hidden",
+    table.border.bottom.style = "hidden",
+    column_labels.border.bottom.width = px(1),
+    column_labels.border.bottom.color = "black",
+    table_body.border.bottom.color    = "black",
+    table.font.size  = px(12),
+    table.width      = pct(70))
+
+tab_scenario_info
+```
+
+
+## Infections
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r inf-info-overall, echo = FALSE}
+inf_info <- counts_dt[
+  ,
+  .(
+    inf_A = max(cum_inf_A),
+    inf_B = max(cum_inf_B)
+  ),
+  by = run_id
+][
+  ,
+  `:=`(
+    inf  = inf_A + inf_B,
+    ar   = (inf_A + inf_B) / param$N * 100,
+    ar_A = inf_A / param$N * 100,
+    ar_B = inf_B / param$N * 100
+  )
+]
+
+
+# summarise
+summary_inf_info <- melt(
+  inf_info,
+  id.vars     = "run_id",
+  variable.name = "measure",
+  value.name  = "value"
+)[
+  ,
+  .(
+    median = median(value),
+    p25    = quantile(value, 0.25),
+    p75    = quantile(value, 0.75),
+    min    = min(value),
+    max    = max(value)
+  ),
+  by = measure
+]
+
+values <- c("inf","ar","inf_A","ar_A","inf_B","ar_B")
+labels <- c("Total infected","Total attack rate (%)","Total infected variant A","Attack rate variant A (%)","Total infected variant B","Attack rate variant B (%)")
+summary_inf_info$measure <- factor(summary_inf_info$measure, levels = values, labels = labels)
+setorder(summary_inf_info, measure)
+summary_inf_info$group <- c(rep("Overall", 2),rep("Variant A", 2),rep("Variant B", 2))
+
+tab_inf_info_overall <- gt(arrange(summary_inf_info,measure), groupname_col = "group") %>%
+  tab_header(title = "Simulation results") %>%
+  cols_label(measure = " ") %>%
+  cols_align(align = "center") %>%
+  cols_align(align = "left",   columns = measure) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_row_groups()) %>%
+  tab_options(
+    table.border.top.style    = "hidden",
+    table.border.bottom.style = "hidden",
+    column_labels.border.bottom.width = px(1),
+    column_labels.border.bottom.color = "black",
+    table_body.border.bottom.color    = "black",
+    table.font.size  = px(12),
+    table.width = pct(70))
+
+tab_inf_info_overall
+
+```
+
+### Individual runs
+
+::: {.overflow-auto style="max-height:400px; overflow-x:auto;"}
+
+```{r inf-info, echo = FALSE}
+tab_inf_info <- gt(inf_info) %>%
+  tab_header(title    = "Simulation results") %>%
+  cols_label(run_id = "Run id",
+             inf = "Total infected",
+             inf_A = "Total infected variant A",
+             inf_B = "Total infected variant B",
+             ar = "Total attack rate (%)",
+             ar_A = "Attack rate variant A (%)",
+             ar_B = "Attack rate variant B (%)") %>%
+  cols_align(align = "center") %>%
+  cols_align(align = "left",   columns = run_id) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_options(
+    table.border.top.style    = "hidden",
+    table.border.bottom.style = "hidden",
+    column_labels.border.bottom.width = px(1),
+    column_labels.border.bottom.color = "black",
+    table_body.border.bottom.color    = "black",
+    table.font.size  = px(12))
+
+tab_inf_info
+
+```
+
+:::
+
+:::
+
+::: {.panel-tabset}
+
+### New infections
+
+::: {.panel-tabset}
+
+#### Overall
+
+```{r inf-overall-plot, echo = FALSE}
+
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = new_inf_A_median, color = "Variant A"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = new_inf_A_p25, ymax = new_inf_A_p75), fill = mycolors[3],alpha = 0.5) +
+  geom_line(aes(y = new_inf_B_median, color = "Variant B"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = new_inf_B_p25, ymax = new_inf_B_p75),fill = mycolors[4],alpha = 0.5) +
+  labs(title = "New infections by virus variant over time  (Median; IQR)",
+       x = "Time (days)",
+       y = "Number of new cases") +
+  scale_color_manual(values = c(mycolors[3], mycolors[4])) +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  theme_plot
+
+```
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r inf-plot, echo = FALSE}
+
+for (i in seq_len(n_pages)) {
+
+  p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = new_inf_A, color = "Variant A"), linewidth = 0.8) +
+  geom_line(aes(y = new_inf_B, color = "Variant B"), linewidth = 0.8) +
+  labs(title = paste0("New infections by virus variant over time (",i,")"),
+       x = "Time (days)",
+       y = "Number of new cases") +
+  scale_color_manual(values = c(mycolors[3],mycolors[4])) +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+  print(p)
+}
+
+```
+
+:::
+
+:::
+
+
+### Cumulative infections
+
+::: {.panel-tabset}
+
+#### Overall
+
+```{r cum-inf-overall-plot, echo = FALSE}
+
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = cum_inf_A_median, color = "Variant A"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = cum_inf_A_p25, ymax = cum_inf_A_p75), fill = mycolors[3],alpha = 0.5) +
+  geom_line(aes(y = cum_inf_B_median, color = "Variant B"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = cum_inf_B_p25, ymax = cum_inf_B_p75),fill = mycolors[4],alpha = 0.5) +
+  labs(title = "Cumulative number of infections by virus variant over time  (Median; IQR)",
+       x = "Time (days)",
+       y = "Number of new cases") +
+  scale_color_manual(values = c(mycolors[3], mycolors[4])) +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  theme_plot
+
+```
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r cum-inf-plot, echo = FALSE}
+
+for (i in seq_len(n_pages)) {
+p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = cum_inf_A, color = "Variant A"), linewidth = 0.8) +
+  geom_line(aes(y = cum_inf_B, color = "Variant B"), linewidth = 0.8) +
+  labs(title = paste0("Cumulative number of infections by virus variant over time (",i,")"),
+       x = "Time (days)",
+       y = "Number of new cases") +
+  scale_color_manual(values = c(mycolors[3],mycolors[4])) +
+  scale_x_continuous(expand = c(0,0), breaks = c(1,seq(50,max(counts_dt$time),50))) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  facet_wrap_paginate(~run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i) +
+  theme_facet 
+  
+  print(p)
+}
+
+```
+
+:::
+
+::: 
+
+### Prevalence of infections
+
+::: {.panel-tabset}
+
+#### Overall
+
+```{r prev-inf-overall-plot, echo = FALSE}
+
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = nIA_median, color = "Variant A"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = nIA_p25, ymax = nIA_p75), fill = mycolors[3],alpha = 0.5) +
+  geom_line(aes(y = nIB_median, color = "Variant B"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = nIB_p25, ymax = nIB_p75),fill = mycolors[4],alpha = 0.5) +
+  labs(title = "Prevalence of infections by virus variant over time  (Median; IQR)",
+       x = "Time (days)",
+       y = "Number of cases") +
+  scale_color_manual(values = c(mycolors[3], mycolors[4])) +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  theme_plot
+
+```
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r prev-inf-plot, echo = FALSE}
+for (i in seq_len(n_pages)) {
+ p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = nIA, color = "Variant A"), linewidth = 0.8) +
+  geom_line(aes(y = nIB, color = "Variant B"), linewidth = 0.8) +
+  labs(title = paste0("Prevalence of infections by virus variant over time (",i,")"),
+       x = "Time (days)",
+       y = "Number of cases") +
+  scale_color_manual(values = c(mycolors[3],mycolors[4])) +
+  scale_x_continuous(expand = c(0,0), breaks = c(1,seq(50,max(counts_dt$time),50))) + 
+  scale_y_continuous(expand = c(0,0)) +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+
+```
+
+:::
+
+:::
+
+:::
+
+
+
+## Susceptibles
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r sus-overall-plot, echo = FALSE}
+
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = nS_naive_median), color = mycolors[1], linewidth = 0.8) +
+  geom_ribbon(aes(ymin = nS_naive_p25, ymax = nS_naive_p75), fill = mycolors[1],alpha = 0.5) +
+  labs(title = "Number of susceptible individuals (S = NI - R - V) over time  (Median; IQR)",
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_plot
+
+```
+
+### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r sus-plot, echo = FALSE}
+for (i in seq_len(n_pages)) {
+ p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = nS - (nR+nV)), color = mycolors[1], linewidth = 0.8) +
+  labs(title = paste0("Number of susceptible individuals (S = NI - R - V) (",i,")"),
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, max(counts_dt$nS))) +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+
+```
+
+::: 
+
+:::
+
+
+## Recovered
+
+::: {.panel-tabset}
+
+### New recoveries
+
+::: {.panel-tabset}
+
+#### Overall
+
+```{r rec-overall-plot, echo = FALSE}
+
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = new_rec_median), color = mycolors[1], linewidth = 0.8) +
+  geom_ribbon(aes(ymin = new_rec_p25, ymax = new_rec_p75), fill = mycolors[1], alpha = 0.5) +
+  labs(title = "Number of new recoveries over time (Median; IQR)",
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_plot
+
+```
+
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r rec-plot, echo = FALSE}
+for (i in seq_len(n_pages)) {
+ p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = new_rec), color = mycolors[1], linewidth = 0.8) +
+  labs(title = paste0("Number of new recoveries (",i,")"),
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+```
+
+:::
+
+::: 
+
+### Cumulative recoveries
+
+::: {.panel-tabset}
+
+#### Overall
+
+```{r cum-rec-overall-plot, echo = FALSE}
+
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = nR_median), color = mycolors[1], linewidth = 0.8) +
+  geom_ribbon(aes(ymin = nR_p25, ymax = nR_p75), fill = mycolors[1], alpha = 0.5) +
+  labs(title = "Number of new recoveries over time (Median; IQR)",
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_plot
+
+```
+
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r cum-rec-plot, echo = FALSE}
+for (i in seq_len(n_pages)) {
+ p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = nR), color = mycolors[1], linewidth = 0.8) +
+  labs(title = paste0("Number of cumulative recoveries (",i,")"),
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+```
+
+::: 
+
+:::
+
+:::
+
+
+## Variant proportion
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r variant-prop-info, echo = FALSE}
+# Prepare data for table
+long_dt <- melt(summary_transition_dt, measure.vars = patterns("_median$|_p25$|_p75$|_min$|_max$"))
+long_dt <- long_dt[, c("measure", "stat") := tstrsplit(variable, "_(?=[^_]+$)", perl = TRUE)]
+var_prop_info <- dcast(long_dt, measure ~ stat, value.var = "value")[, .(measure, median, p25, p75, min, max)]
+
+values <- c("days_to_dominance","days_to_A_gone","day_B_intro","day_B_dominant","day_A_gone")
+labels <- c("Number of days until B dominates","Number of days until A disappears","Day of B introduction","Day of B dominance","Day of A disappearance")
+var_prop_info$measure <- factor(var_prop_info$measure, levels = values, labels = labels)
+
+setorder(var_prop_info, measure)
+
+tab_prop_info <- gt(var_prop_info) %>%
+  tab_header(title = "Simulation results") %>%
+  cols_label(measure = " ") %>%
+  cols_align(align = "center") %>%
+  cols_align(align = "left",   columns = measure) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_row_groups()) %>%
+  tab_options(
+    table.border.top.style    = "hidden",
+    table.border.bottom.style = "hidden",
+    column_labels.border.bottom.width = px(1),
+    column_labels.border.bottom.color = "black",
+    table_body.border.bottom.color    = "black",
+    table.font.size  = px(12))
+
+tab_prop_info
+
+```
+
+### Individual runs
+
+```{r variant-prop-ind, echo = FALSE}
+
+# Prepare data for table
+tab_prop_info <- gt(transition_dt) %>%
+  tab_header(title    = "Simulation results") %>%
+  cols_label(run_id = "Run id",
+             days_to_dominance = "Number of days until B dominates",
+             days_to_A_gone = "Number of days until A disappears",
+             day_B_intro = "Day of B introduction",
+             day_B_dominant = "Day of B dominance",
+             day_A_gone = "Day of A disappearance") %>%
+  cols_align(align = "center") %>%
+  cols_align(align = "left",   columns = run_id) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_options(
+    table.border.top.style    = "hidden",
+    table.border.bottom.style = "hidden",
+    column_labels.border.bottom.width = px(1),
+    column_labels.border.bottom.color = "black",
+    table_body.border.bottom.color    = "black",
+    table.font.size  = px(12))
+
+tab_prop_info
+
+```
+
+:::
+
+::: {.panel-tabset}
+
+### Line plot
+
+::: {.panel-tabset}
+
+#### Overall
+
+```{r var-prop-overall, echo = FALSE}
+
+# Proportion of variant A and variant B
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = prop_A_median*100, color = "Variant A"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = prop_A_p25*100, ymax = prop_A_p75*100), fill = mycolors[4], alpha = 0.5) +
+  geom_line(aes(y = prop_B_median*100, color = "Variant B"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = prop_B_p25*100, ymax = prop_B_p75*100), fill = mycolors[3], alpha = 0.5) +
+  labs(title = paste0("Variant proportion over time (Median;IQR)"),
+       x = "Time (days)",
+       y = "Variant proportion (%)") +
+  scale_color_manual(values = c(mycolors[4],mycolors[3])) +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) +
+  theme_plot
+
+
+```
+
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r var-prop, echo = FALSE}
+
+# Proportion of variant A and variant B
+
+for (i in seq_len(n_pages)) {
+  
+ p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = prop_A*100, color = "Variant A"), linewidth = 0.8) +
+  geom_line(aes(y = prop_B*100, color = "Variant B"), linewidth = 0.8) +
+  labs(title = paste0("Variant proportion over time (",i,")"),
+       x = "Time (days)",
+       y = "Variant proportion (%)") +
+  scale_color_manual(values = c(mycolors[4],mycolors[3])) +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+
+
+```
+
+:::
+
+:::
+
+### Area plot
+
+::: {.panel-tabset}
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r var-prop-bar, echo = FALSE}
+
+# reshape to long format
+plot_dt <- melt(
+  counts_dt,
+  id.vars = c("run_id", "time"),
+  measure.vars = c("prop_A", "prop_B"),
+  variable.name = "variant",
+  value.name = "proportion"
+)
+
+# rename labels
+plot_dt[, variant := factor(
+  variant,
+  levels = c("prop_A", "prop_B"),
+  labels = c("Variant A", "Variant B")
+)]
+
+# area plot
+for (i in seq_len(n_pages)) {
+ p <- ggplot(plot_dt, aes(x = time, y = proportion*100, fill = variant)) +
+  geom_area(position = "fill", alpha = 0.8) +
+  labs(title = paste0("Variant proportion over time (",i,")"),
+       x = "Time (days)",
+       y = "Variant proportion (%)") +
+  scale_fill_manual(values = c(mycolors[4],mycolors[3])) +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+
+```
+
+:::
+
+::: 
+
+:::
+
+## Vaccination
+
+```{r vacc-info, echo = FALSE}
+vacc_info <- data.frame(
+  measure = c("Vaccination coverage target (%)",
+              "Vaccination coverage (%)",
+              "Vaccination target",
+              "Total vaccinated"),
+  value = c(param$vacc_cov*100,
+            round(max(counts_dt$nV)/param$N*100,1),
+            param$vacc_cov * param$N,
+            max(counts_dt$nV)))
+            
+tab_vacc_info <- gt(vacc_info) %>%
+  tab_header(title    = "Simulation results") %>%
+  cols_label(measure = "Measure",value     = "Value") %>%
+  cols_align(align   = "left",   columns = measure) %>%
+  cols_align(align   = "center", columns = value) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_options(table.border.top.style    = "hidden",
+              table.border.bottom.style = "hidden",
+              column_labels.border.bottom.width = px(1),
+              column_labels.border.bottom.color = "black",
+              table_body.border.bottom.color    = "black",
+              table.font.size  = px(12),
+              table.width = pct(70))
+
+tab_vacc_info
+
+```
+
+
+```{r vacc-plot, echo = FALSE}
+
+ggplot(subset(counts_dt, run_id == 1), aes(x = time)) +
+  geom_line(aes(y = nV), color = mycolors[1], linewidth = 0.8) +
+  labs(title = "Vaccination over time (first run)",
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0), breaks = c(1,seq(50,max(counts_dt$time),50))) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, max(counts_dt$nV)*1.2))+
+  # add info to the plot
+  geom_vline(xintercept = param$vacc_start, color = mycolors[2], linetype = "dashed") +
+  geom_vline(xintercept = param$vacc_start+param$vacc_length, color = mycolors[2], linetype = "dashed") +
+  # total vaccinated
+  # geom_hline(yintercept = param$vacc_cov*param$N, color = mycolors[2], linetype = "dashed") +
+  # geom_hline(yintercept = max(counts_dt$nV), color = mycolors[1], linetype = "dashed") +
+  # annotate("text", x = 1, y = param$vacc_cov * param$N * 1.05,
+  #          label = paste0("Target: ", param$vacc_cov * param$N),
+  #          hjust = 0, colour = mycolors[2], size = 3.5) +
+  # annotate("text", x = 1, y = max(counts_dt$nV) * 0.95,
+  #          label = paste0("Vaccinated: ", max(counts_dt$nV)),
+  #          hjust = 0, colour = mycolors[1], size = 3.5) +
+  theme_facet
+
+```
+
+
+## Average protection 
+
+::: {.panel-tabset}
+
+#### Overall
+
+```{r prot-overall-plot, echo = FALSE}
+
+ggplot(summary_daily_counts, aes(x = time)) +
+  geom_line(aes(y = avg_prot_A_median, color = "Variant A"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = avg_prot_A_p25, ymax = avg_prot_A_p75), fill = mycolors[4], alpha = 0.5) +
+  geom_line(aes(y = avg_prot_B_median, color = "Variant B"), linewidth = 0.8) +
+  geom_ribbon(aes(ymin = avg_prot_B_p25, ymax = avg_prot_B_p75), fill = mycolors[3], alpha = 0.5) +
+  labs(title = "Average protection by virus variant over time (Median; IQR)",
+       x = "Time (days)",
+       y = "Number of individuals") +
+  scale_color_manual(values = c(mycolors[4],mycolors[3])) +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+   # add vacc info to the plot
+  geom_vline(xintercept = param$vacc_start, color = mycolors[1], linetype = "dashed") +
+  geom_vline(xintercept = param$vacc_start+param$vacc_length, color = mycolors[1], linetype = "dashed") +
+  geom_vline(xintercept = param$vacc_start+param$vacc_length+14, color = mycolors[1], linetype = "dashed") +
+  theme_plot
+
+```
+
+
+#### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r prot-plot, echo = FALSE}
+for (i in seq_len(n_pages)) {
+
+  p <- ggplot(counts_dt, aes(x = time)) +
+  geom_line(aes(y = avg_prot_A, color = "Variant A"), linewidth = 0.8) +
+  geom_line(aes(y = avg_prot_B, color = "Variant B"), linewidth = 0.8) +
+  labs(title = paste0("Average protection by virus variant over time (",i,")"),
+       x = "Time (days)",
+       y = "Average probability of protection") +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  scale_color_manual(values = c(mycolors[4],mycolors[3])) +
+ # add vacc info to the plot
+  geom_vline(xintercept = param$vacc_start, color = mycolors[1], linetype = "dashed") +
+  geom_vline(xintercept = param$vacc_start+param$vacc_length, color = mycolors[1], linetype = "dashed") +
+  geom_vline(xintercept = param$vacc_start+param$vacc_length+14, color = mycolors[1], linetype = "dashed") +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+```
+
+::: 
+
+:::
+
+# Case-control study data
+
+## Number of cases and controls
+
+::: {.panel-tabset}
+
+### Overall
+
+::: {.overflow-auto style="max-height:400px; overflow-x:auto;"}
+
+```{r cc-summary-info, echo = FALSE}
+# Get all tsv_30 levels except "Unvaccinated"
+tsv_levels <- setdiff(levels(cc_dt$tsv_30), "Unvaccinated")
+
+# Run aggregation
+summary_cc_counts <- cc_dt[, {
+  
+  # Base counts
+  base <- list(
+    Cases                   = sum(cc == "case",                                                  na.rm = TRUE),
+    Controls                = sum(cc == "control",                                               na.rm = TRUE),
+    `Vaccinated cases`      = sum(cc == "case"    & vaccinated_f == "Vaccinated",                na.rm = TRUE),
+    `Unvaccinated cases`    = sum(cc == "case"    & vaccinated_f == "Unvaccinated",              na.rm = TRUE),
+    `Vaccinated controls`   = sum(cc == "control" & vaccinated_f == "Vaccinated",                na.rm = TRUE),
+    `Unvaccinated controls` = sum(cc == "control" & vaccinated_f == "Unvaccinated",              na.rm = TRUE)
+  )
+  
+  # Base variant A counts
+  base_a <- list(
+    `Cases A`               = sum(cc == "case" & variant == "A",                                 na.rm = TRUE),
+    `Cases A unvaccinated`  = sum(cc == "case" & variant == "A" & vaccinated_f == "Unvaccinated",na.rm = TRUE),
+    `Cases A vaccinated`    = sum(cc == "case" & variant == "A" & vaccinated_f == "Vaccinated",  na.rm = TRUE)
+  )
+  
+  # Dynamic tsv counts for variant A
+  tsv_a <- setNames(
+    lapply(tsv_levels, function(lvl)
+      sum(cc == "case" & variant == "A" & vaccinated_f == "Vaccinated" & as.character(tsv_30) == lvl, na.rm = TRUE)
+    ),
+    paste0("Cases A vaccinated ", tsv_levels)
+  )
+  
+  # Base variant B counts
+  base_b <- list(
+    `Cases B`               = sum(cc == "case" & variant == "B",                                 na.rm = TRUE),
+    `Cases B unvaccinated`  = sum(cc == "case" & variant == "B" & vaccinated_f == "Unvaccinated",na.rm = TRUE),
+    `Cases B vaccinated`    = sum(cc == "case" & variant == "B" & vaccinated_f == "Vaccinated",  na.rm = TRUE)
+  )
+  
+  # Dynamic tsv counts for variant B
+  tsv_b <- setNames(
+    lapply(tsv_levels, function(lvl)
+      sum(cc == "case" & variant == "B" & vaccinated_f == "Vaccinated" & as.character(tsv_30) == lvl, na.rm = TRUE)
+    ),
+    paste0("Cases B vaccinated ", tsv_levels)
+  )
+  
+  c(base, base_a, tsv_a, base_b, tsv_b)
+  
+}, by = run_id]
+
+
+# summarise
+summary_cc <- melt(
+  summary_cc_counts,
+  id.vars     = "run_id",
+  variable.name = "measure",
+  value.name  = "value"
+)[
+  ,
+  .(
+    median = median(value),
+    p25    = quantile(value, 0.25),
+    p75    = quantile(value, 0.75),
+    min    = min(value),
+    max    = max(value)
+  ),
+  by = measure
+][, group := c(
+    rep("Overall",   6),
+    rep("Variant A", 3 + length(tsv_levels)),
+    rep("Variant B", 3 + length(tsv_levels))
+)]
+
+tab_cc_overall_info <- gt(summary_cc, groupname_col = "group") %>%
+  tab_header(title    = "Simulation results") %>%
+  cols_label(measure = " ") %>%
+  cols_align(align = "center") %>%
+  cols_align(align = "left",   columns = measure) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_style(style     = cell_text(weight = "bold"),locations = cells_row_groups()) %>%
+  tab_options(
+    table.border.top.style    = "hidden",
+    table.border.bottom.style = "hidden",
+    column_labels.border.bottom.width = px(1),
+    column_labels.border.bottom.color = "black",
+    table_body.border.bottom.color    = "black",
+    table.font.size  = px(12),
+    table.width = pct(70))
+
+tab_cc_overall_info
+
+```
+
+:::
+
+### Individual runs
+
+::: {.overflow-auto style="max-height:400px; overflow-x:auto;"}
+
+```{r cc-info, echo = FALSE}
+            
+tab_cc_info <- gt(summary_cc_counts) %>%
+  tab_header(title    = "Simulation results") %>%
+  cols_label(run_id = "Run id") %>%
+  cols_align(align = "center") %>%
+  cols_align(align = "left",   columns = run_id) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_column_labels()) %>%
+  tab_style(style = cell_text(weight = "bold"),locations = cells_title()) %>%
+  tab_options(table.border.top.style    = "hidden",
+              table.border.bottom.style = "hidden",
+              column_labels.border.bottom.width = px(1),
+              column_labels.border.bottom.color = "black",
+              table_body.border.bottom.color    = "black",
+              table.font.size  = px(12))
+
+tab_cc_info
+
+```
+
+:::
+
+:::
+
+## Cases and controls over time
+
+```{r summary_cc_dt, echo = FALSE}
+# Cases and controls by run_id
+n_cc <- cc_dt[
+  ,
+  .(n = .N),
+  by = .(run_id, t, cc)
+][
+  ,
+  label := cc
+]
+
+# Vaccinated by case/control by run_id
+n_cc_vac <- cc_dt[
+  vaccinated == 1,
+  .(n = .N),
+  by = .(run_id, tv, cc)
+][
+  ,
+  label := paste0("Vaccinated ", cc)
+]
+
+# Median cases/controls 
+n_cc_summary <- n_cc[
+  ,
+  .(
+    median_n = as.numeric(median(n)),
+    p25_n = as.numeric(quantile(n, 0.25)),
+    p75_n = as.numeric(quantile(n, 0.75))
+  ),
+  by = .(t, cc, label)
+]
+
+# Median vaccinated by case/control
+n_cc_vac_summary <- n_cc_vac[
+  ,
+  .(
+    median_n = as.numeric(median(n)),
+    p25_n = as.numeric(quantile(n, 0.25)),
+    p75_n = as.numeric(quantile(n, 0.75))
+  ),
+  by = .(tv, cc, label)
+]
+
+```
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r cc-overall-plot, echo = FALSE}
+
+ggplot() +
+  geom_line(data = n_cc_summary, aes(x = t, y = median_n, color = label, group = label), linewidth = 0.8, linetype = "solid") +
+  geom_ribbon(data = n_cc_summary, aes(x = t, ymin = p25_n, ymax = p75_n, fill = label, group = label), alpha = 0.5) +
+  geom_line(data = n_cc_vac_summary, aes(x = tv, y = median_n, color = label, group = label), linewidth = 0.8, linetype = "dashed") +
+  geom_ribbon(data = n_cc_vac_summary, aes(x = tv, ymin = p25_n, ymax = p75_n, fill = label, group = label), alpha = 0.5) +
+  labs(title = paste0("Cases and controls and vaccination over time (Median;IQR)"),
+       x = "Time of infection / vaccination (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  scale_color_manual(values = c("case" = mycolors[2], "control" = mycolors[1], "Vaccinated case" = mycolors[2], "Vaccinated control" = mycolors[1])) +
+  scale_fill_manual(values = c("case" = mycolors[2], "control" = mycolors[1], "Vaccinated case" = mycolors[2], "Vaccinated control" = mycolors[1])) +
+  theme_plot
+
+```
+
+### Individual runs
+
+::: {.overflow-auto style="max-height:500px; overflow-x:auto;"}
+
+```{r cc-plot, echo = FALSE}
+
+for (i in seq_len(n_pages)) {
+
+p <- ggplot() +
+  geom_line(data = n_cc, aes(x = t, y = n, color = label, group = label), linewidth = 0.8, linetype = "solid") +
+  geom_line(data = n_cc_vac, aes(x = tv, y = n, color = label, group = label), linewidth = 0.8, linetype = "dashed") +
+  labs(title = paste0("Cases and controls and vaccination over time (",i,")"),
+       x = "Time of infection / vaccination (days)",
+       y = "Number of individuals") +
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  scale_color_manual(values = c(mycolors[1],mycolors[2],mycolors[1],mycolors[2])) +
+  theme_facet +
+  facet_wrap_paginate(
+    ~ run_id,
+    ncol = n_col,
+    nrow = n_row,
+    page = i)
+
+  print(p)
+}
+
+```
+
+:::
+
+::: 
