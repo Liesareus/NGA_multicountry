@@ -37,14 +37,11 @@ load_data=function(country,contacts_path,periods){
   
   # include the country name and save aux variable for country selected
   if(country=="UK"){
-    participant$country="United Kingdom"
-    aux_country="United Kingdom"
+    participant$country=aux_country
   } else if(country=="BE"){
-    participant$country="Belgium"
-    aux_country="Belgium"
+    participant$country=aux_country
   } else if(country=="NL"){
-    participant$country="Netherlands"
-    aux_country="Netherlands"
+    participant$country=aux_country
   }
   
   # load contact data

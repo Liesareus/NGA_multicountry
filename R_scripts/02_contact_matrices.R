@@ -163,64 +163,13 @@ run_cm = function(participants, contacts, n_sample, aux_country,age_numeric, boo
     
   }
   
-  # compute the mean matrix and standard deviation matrix for each setting
-  
-  # home
-  cm_mean_home=Reduce("+",cm_home)/length(cm_home)
-  cm_sd_home=sqrt(Reduce("+",lapply(cm_home, function(x) (x - cm_mean_home)^2))/length(cm_home))
-  
-  # school
-  cm_mean_school=Reduce("+",cm_school)/length(cm_school)
-  cm_sd_school=sqrt(Reduce("+",lapply(cm_school, function(x) (x - cm_mean_school)^2))/length(cm_school))
-  
-  # work
-  cm_mean_work=Reduce("+",cm_work)/length(cm_work)
-  cm_sd_work=sqrt(Reduce("+",lapply(cm_work, function(x) (x - cm_mean_work)^2))/length(cm_work))
-  
-  # transport
-  cm_mean_transport=Reduce("+",cm_transport)/length(cm_transport)
-  cm_sd_transport=sqrt(Reduce("+",lapply(cm_transport, function(x) (x - cm_mean_transport)^2))/length(cm_transport))
-  
-  # leisure
-  cm_mean_leisure=Reduce("+",cm_leisure)/length(cm_leisure)
-  cm_sd_leisure=sqrt(Reduce("+",lapply(cm_leisure, function(x) (x - cm_mean_leisure)^2))/length(cm_leisure))
-  
-  # other
-  cm_mean_other=Reduce("+",cm_other)/length(cm_other)
-  cm_sd_other=sqrt(Reduce("+",lapply(cm_other, function(x) (x - cm_mean_other)^2))/length(cm_other))
-  
-  # total
-  cm_mean_total=Reduce("+",cm_total)/length(cm_total)
-  cm_sd_total=sqrt(Reduce("+",lapply(cm_total, function(x) (x - cm_mean_total)^2))/length(cm_total))
-  
   res$matrix_sample_home = cm_home
-  res$matrix_mean_home = cm_mean_home
-  res$matrix_sd_home = cm_sd_home
-  
-  
   res$matrix_sample_school = cm_school
-  res$matrix_mean_school = cm_mean_school
-  res$matrix_sd_school = cm_sd_school
-  
   res$matrix_sample_work = cm_work
-  res$matrix_mean_work = cm_mean_work
-  res$matrix_sd_work = cm_sd_work
-  
   res$matrix_sample_transport = cm_transport
-  res$matrix_mean_transport = cm_mean_transport
-  res$matrix_sd_transport = cm_sd_transport
-  
   res$matrix_sample_leisure = cm_leisure
-  res$matrix_mean_leisure = cm_mean_leisure
-  res$matrix_sd_leisure = cm_sd_leisure
-  
   res$matrix_sample_other = cm_other
-  res$matrix_mean_other = cm_mean_other
-  res$matrix_sd_other = cm_sd_other
-  
   res$matrix_sample_total = cm_total
-  res$matrix_mean_total = cm_mean_total
-  res$matrix_sd_total = cm_sd_total
   
   res$participants = part
   res$demography = dem

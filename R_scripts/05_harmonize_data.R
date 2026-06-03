@@ -35,19 +35,12 @@ harmonize_data = function(measures_path,country,contact_mats, incidence, rt, per
   incidence <- split(incidence[,-1], incidence$period)
 
   # extract only the necessary information to run the analysis
-  contact_mats <- lapply(contact_mats, function(sublist) sublist[c(1, 4, 7, 10, 13, 16, 19)])
+  contact_mats <- lapply(contact_mats, function(sublist) sublist[c(1, 2, 3, 4, 5, 6, 7)])
   
   
   # obtain measures data and calculate the weights to adjust the contact matrices by setting
   measures = read.csv(paste0(measures_path,paste0("OxCGRT_compact_national_v1.csv")))
   
-  if(country=="UK"){
-    aux_country="United Kingdom"
-  } else if(country=="BE"){
-    aux_country="Belgium"
-  } else if(country=="NL"){
-    aux_country="Netherlands"
-  }
   
   # Select only the desired country
   measures <- measures %>%
