@@ -17,6 +17,7 @@ suppressPackageStartupMessages({
   library(directlabels)
   library(geomtextpath)
   library(scales)
+  library(forcats)
 })
 
 # -------------------------------
@@ -34,3 +35,4 @@ opt$nperiods <- 20
   } else if(opt$country=="NL"){
     aux_country="Netherlands"
   }
+

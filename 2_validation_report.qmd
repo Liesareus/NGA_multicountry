@@ -1,0 +1,1008 @@
+---
+title: "NGA multicountry report"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    page-layout: full
+    self-contained: true
+editor: source
+params:
+  parameters_name: NULL
+---
+
+
+
+```{r, include=FALSE}
+
+# Load options and config -------------------------------------------------------------
+source("0_options.R")
+config <- yaml::read_yaml("study_config.yml") # config file with all parameters
+
+
+# Load processed data -------------------------------------------------------------
+readRDS(file.path(config$data_processed, paste0("inputs_",opt$country,"_20_2020-12-25_to_2021-09-17.rds"))) -> inputs     # LOAD NAMES CORRECTLY 
+readRDS(file.path(config$data_processed, paste0("results_",opt$country,"_20_2020-12-25_to_2021-09-17.rds"))) -> results      
+readRDS(file.path(config$data_processed, paste0("periods_",opt$country,"_20_2020-12-25_to_2021-09-17.rds"))) -> periods 
+
+# Graphical parameters -------------------------------------------------------------
+pal=  c("#FFF2B2",
+        "#FFD772",
+        "#F9B74C",
+        "#DFA144",
+        "#A6B96A",
+        "#6FAF91",
+        "#4F9FAE",
+        "#2B7F8E")
+
+social_palette <- c(
+"#E07B54",  # warm terracotta
+"#4A7BB7",  # professional blue
+"#F2C14E",  # golden yellow
+"#7B9E87",  # muted sage green
+"#C47DB5",  # soft purple
+"#A0A0A0"   # neutral grey
+)
+```
+
+
+- **Country:** `r aux_country`
+- **Timeframe:** `r min(periods$start)` to `r max(periods$end)` (`r max(periods$period)`, 2-week periods)
+- **Sampling:** `r config$study$n_sample` samples per period
+
+# Inputs
+
+## Sample mean contact matrices
+::: {.panel-tabset}
+
+### Overall
+
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract contact matrices
+cm_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- inputs[[p]]$contacts$matrix_sample_total[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(cm_long$from)
+cm_long <- cm_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+cm_summary <- cm_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_cm_heatmap <- function(df) {
+  df %>%
+    ggplot(aes(x = to, y = from, fill = m)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "#1565C0", name = "Mean contacts") +
+    facet_wrap(~ period, ncol = 5, labeller = label_both) +
+    labs(title = "CM — Mean", x = "", y = "") +
+    theme_minimal(base_size = 11) +
+    theme(
+      axis.text.x      = element_text(angle = 45, hjust = 1),
+      strip.background = element_rect(fill = "grey90", color = NA),
+      panel.grid       = element_blank()
+    )
+}
+plot_cm_heatmap(cm_summary)
+
+```
+
+
+### Home
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract contact matrices
+cm_home_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- inputs[[p]]$contacts$matrix_sample_home[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(cm_home_long$from)
+cm_home_long <- cm_home_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+cm_home_summary <- cm_home_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_cm_heatmap(cm_home_summary) + labs(title = "Home CM — Mean")
+```
+
+
+### School
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract contact matrices
+cm_school_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- inputs[[p]]$contacts$matrix_sample_school[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(cm_school_long$from)
+cm_school_long <- cm_school_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+cm_school_summary <- cm_school_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_cm_heatmap(cm_school_summary) + labs(title = "School CM — Mean")
+```
+
+
+### Work
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract contact matrices
+cm_work_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- inputs[[p]]$contacts$matrix_sample_work[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(cm_work_long$from)
+cm_work_long <- cm_work_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+cm_work_summary <- cm_work_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_cm_heatmap(cm_work_summary) + labs(title = "Work CM — Mean")
+```
+
+### Transport
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract contact matrices
+cm_transport_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- inputs[[p]]$contacts$matrix_sample_transport[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(cm_transport_long$from)
+cm_transport_long <- cm_transport_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+cm_transport_summary <- cm_transport_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_cm_heatmap(cm_transport_summary) + labs(title = "Transport CM — Mean")
+```
+
+### Leisure
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract contact matrices
+cm_leisure_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- inputs[[p]]$contacts$matrix_sample_leisure[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(cm_leisure_long$from)
+cm_leisure_long <- cm_leisure_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+cm_leisure_summary <- cm_leisure_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_cm_heatmap(cm_leisure_summary) + labs(title = "Leisure CM — Mean")
+```
+
+### Other
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract contact matrices
+cm_other_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- inputs[[p]]$contacts$matrix_sample_other[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(cm_other_long$from)
+cm_other_long <- cm_other_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+cm_other_summary <- cm_other_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_cm_heatmap(cm_other_summary) + labs(title = "Other CM — Mean")
+```
+
+:::
+
+
+
+
+## Standard deviation contact matrices
+:::{.panel-tabset}
+### Overall
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_cm_heatmap_sd <- function(df) {
+  df %>%
+    ggplot(aes(x = to, y = from, fill = sdt)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "orange", name = "sd contacts") +
+    facet_wrap(~ period, ncol = 5, labeller = label_both) +
+    labs(title = "CM — sd", x = "", y = "") +
+    theme_minimal(base_size = 11) +
+    theme(
+      axis.text.x      = element_text(angle = 45, hjust = 1),
+      strip.background = element_rect(fill = "grey90", color = NA),
+      panel.grid       = element_blank()
+    )
+}
+plot_cm_heatmap_sd(cm_summary)
+```
+
+### Home 
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_cm_heatmap_sd(cm_home_summary) + labs(title = "Home CM — sd")
+```
+
+### School
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_cm_heatmap_sd(cm_school_summary) + labs(title = "School CM — sd")
+```
+
+### Work
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_cm_heatmap_sd(cm_work_summary) + labs(title = "Work CM — sd")
+```
+
+### Transport
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_cm_heatmap_sd(cm_transport_summary) + labs(title = "Transport CM — sd")
+```
+
+### Leisure
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_cm_heatmap_sd(cm_leisure_summary) + labs(title = "Leisure CM — sd")
+```
+
+### Other
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_cm_heatmap_sd(cm_other_summary) + labs(title = "Other CM — sd")
+```
+:::
+
+::: {.panel-tabset}
+
+### Rt over time
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract rt
+rt_long <- map_dfr(1:opt$nperiods, function(p){
+    rt <- inputs[[p]]$rt
+    as.data.frame(rt) %>%
+      mutate(period = p)
+})
+
+# plot rt
+rt_long %>%
+  ggplot(aes(x = period, y = rt)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  scale_x_continuous(breaks = 1:opt$nperiods) +
+  labs(title = "Rt over time", x = "Period", y = "Rt") +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank())
+
+```
+
+### Contact weights over time
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+w_long <- map_dfr(1:opt$nperiods, function(p){
+    w <- inputs[[p]]$weights
+    as.data.frame(w) %>%
+      mutate(period = p)
+})
+
+# plot weights
+w_long %>%
+  ggplot(aes(x = period, y = w)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:opt$nperiods) +
+  labs(title = "Contact weights over time", x = "Period", y = "weights") +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank())
+
+```
+
+
+### Incidence by age group over time
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract incidence
+incidence_long <- map_dfr(1:opt$nperiods, function(p){ 
+    incidence <- inputs[[p]]$incidence
+    as.data.frame(incidence) %>%
+      mutate(period = p)
+})
+
+# plot incidence
+incidence_long %>% 
+  ggplot(aes(x = period, y = rel_incidence, group = agegroup, color = agegroup)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:opt$nperiods) +
+  scale_color_manual(values = pal) +
+  scale_fill_manual(values = pal) +
+  labs(title = "Relative incidence by age group over time", x = "Period", y = "relative incidence") +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank())
+
+```
+
+
+:::
+
+# Results
+
+
+## Sample mean NGM and setting-specific transmission matrices
+::: {.panel-tabset}
+
+### Next Generation Matrix
+
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# Extract ngm into a long data frame
+ngm_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm[[s]]
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_long$from)
+ngm_long <- ngm_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+ngm_summary <- ngm_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+# plot
+plot_ngm_heatmap <- function(df) {
+  df %>%
+    ggplot(aes(x = to, y = from, fill = m)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "#1565C0", name = "mean nr of infections") +
+    facet_wrap(~ period, ncol = 5, labeller = label_both) +
+    labs(title = "NGM — mean", x = "", y = "") +
+    theme_minimal(base_size = 11) +
+    theme(
+      axis.text.x      = element_text(angle = 45, hjust = 1),
+      strip.background = element_rect(fill = "grey90", color = NA),
+      panel.grid       = element_blank()
+    )
+}
+plot_ngm_heatmap(ngm_summary)
+```
+
+### Home
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+ngm_long_home <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm_set[[s]][["NGM_HOME"]]
+    rownames(mat) <- config$study$age_groups
+    colnames(mat) <- config$study$age_groups
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_long_home$from)
+ngm_long_home <- ngm_long_home %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+ngm_home_summary <- ngm_long_home %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+plot_ngm_heatmap(ngm_home_summary) + labs(title = "Home transmission matrix — mean")
+```
+
+### School
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+ngm_long_school <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm_set[[s]][["NGM_SCHOOL"]]
+    rownames(mat) <- config$study$age_groups
+    colnames(mat) <- config$study$age_groups
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_long_school$from)
+ngm_long_school <- ngm_long_school %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+ngm_school_summary <- ngm_long_school %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+plot_ngm_heatmap(ngm_school_summary) + labs(title = "School transmission matrix — mean")
+```
+
+### Work
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+ngm_long_work <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm_set[[s]][["NGM_WORK"]]
+    rownames(mat) <- config$study$age_groups
+    colnames(mat) <- config$study$age_groups
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_long_work$from)
+ngm_long_work <- ngm_long_work %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+ngm_work_summary <- ngm_long_work %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+plot_ngm_heatmap(ngm_work_summary) + labs(title = "Work transmission matrix — mean")
+```
+
+### Transport 
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+ngm_transport_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm_set[[s]][["NGM_TRANSPORT"]]
+    rownames(mat) <- config$study$age_groups
+    colnames(mat) <- config$study$age_groups
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_transport_long$from)
+ngm_transport_long <- ngm_transport_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+ngm_transport_summary <- ngm_transport_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+plot_ngm_heatmap(ngm_transport_summary) + labs(title = "Transport transmission matrix — mean")
+```
+
+### Leisure
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+ngm_leisure_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm_set[[s]][["NGM_LEISURE"]]
+    rownames(mat) <- config$study$age_groups
+    colnames(mat) <- config$study$age_groups
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_leisure_long$from)
+ngm_leisure_long <- ngm_leisure_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+ngm_leisure_summary <- ngm_leisure_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+plot_ngm_heatmap(ngm_leisure_summary) + labs(title = "Leisure transmission matrix — mean")
+```
+
+### Other
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+ngm_other_long <- map_dfr(1:opt$nperiods, function(p) {
+  map_dfr(1:config$study$n_sample, function(s) {
+    mat <- results[[p]]$ngm_set[[s]][["NGM_OTHER"]]
+    rownames(mat) <- config$study$age_groups
+    colnames(mat) <- config$study$age_groups
+    age_labels = rownames(mat)
+    as.data.frame(mat) %>%
+      mutate(from = age_labels) %>%
+      pivot_longer(-from, names_to = "to", values_to = "value") %>%
+      mutate(period = p, sample = s)
+  })
+})
+age_labels = unique(ngm_other_long$from)
+ngm_other_long <- ngm_other_long %>% mutate(from = factor(from, levels = age_labels),
+                to = factor(to, levels = age_labels)) 
+
+# compute statistics 
+ngm_other_summary <- ngm_other_long %>%
+  group_by(period, from, to) %>%
+  summarise(
+    m = mean(value, na.rm = TRUE),
+    sdt   = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(label = paste0(round(m, 2), " ± ", round(sdt, 2)))
+
+plot_ngm_heatmap(ngm_other_summary) + labs(title = "Other transmission matrix — mean")
+```
+
+:::
+
+## Standard deviation NGM and setting-specific transmission matrices
+::: {.panel-tabset}
+### Next Generation Matrix
+
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_ngm_heatmap_sd <- function(df) {
+  df %>%
+    ggplot(aes(x = to, y = from, fill = sdt)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "orange", name = "nr of infections sd") +
+    facet_wrap(~ period, ncol = 5, labeller = label_both) +
+    labs(title = "NGM — sd", x = "", y = "") +
+    theme_minimal(base_size = 11) +
+    theme(
+      axis.text.x      = element_text(angle = 45, hjust = 1),
+      strip.background = element_rect(fill = "grey90", color = NA),
+      panel.grid       = element_blank()
+    )
+}
+plot_ngm_heatmap_sd(ngm_summary)
+```
+
+### Home 
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_ngm_heatmap_sd(ngm_home_summary) + labs(title = "Home transmission matrix — sd")
+```
+
+### School 
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_ngm_heatmap_sd(ngm_school_summary) + labs(title = "School transmission matrix — sd")
+```
+
+### Work 
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_ngm_heatmap_sd(ngm_work_summary) + labs(title = "Work transmission matrix — sd")
+```
+
+### Transport
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_ngm_heatmap_sd(ngm_transport_summary) + labs(title = "Transport transmission matrix — sd")
+```
+
+### Leisure
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_ngm_heatmap_sd(ngm_leisure_summary) + labs(title = "Leisure transmission matrix — sd")
+```
+
+### Other
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# plot
+plot_ngm_heatmap_sd(ngm_other_summary) + labs(title = "Other transmission matrix — sd")
+```
+:::
+
+## Elasticity and sensitivity matrices
+::: {.panel-tabset}
+```{r, echo=FALSE}
+# ── Helper: extract sensitivity and elasticity matrices ──────────────────
+extract_special_matrix <- function(result_name) {
+  map_dfr(1:opt$nperiods, function(p){
+    map_dfr(1:config$study$n_sample, function(s){
+      mat <- results[[p]][[result_name]][[s]]
+      rownames(mat) <- config$study$age_groups
+      colnames(mat) <- config$study$age_groups
+      age_labels = rownames(mat)
+      as.data.frame(mat) %>%
+        mutate(from = age_labels) %>%
+        pivot_longer(-from, names_to = "to", values_to = "value") %>%
+        mutate(period = p, sample = s)
+      })
+    })
+}
+
+
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+summarise_special_matrix <- function(df) {
+  df %>%
+    group_by(period, from, to) %>%
+    summarise(
+      m = mean(value, na.rm = TRUE),
+      sdt   = sd(value, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
+
+
+# ── Plot helper ───────────────────────────────────────────────────────────────
+plot_special_matrix <- function(df, fill_var,title, color) {
+  df %>%
+    ggplot(aes(x = to, y = from, fill = {{ fill_var }})) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = color, name = "") +
+    facet_wrap(~ period, ncol = 5, labeller = label_both) +
+    labs(title = title, x = "", y = "") +
+    theme_minimal(base_size = 11) +
+    theme(
+      axis.text.x      = element_text(angle = 45, hjust = 1),
+      strip.background = element_rect(fill = "grey90", color = NA),
+      panel.grid       = element_blank()
+    )
+}
+```
+
+
+### Elasticity matrix - mean
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract
+elas_long = extract_special_matrix("elas")
+#summary
+elas_summary = summarise_special_matrix(elas_long)
+#plot
+plot_special_matrix(elas_summary, m, "Elasticity matrix — mean","#1565C0")
+```
+
+
+### Sensitivity matrix - mean
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract
+sens_long = extract_special_matrix("sens")
+#summary
+sens_summary = summarise_special_matrix(sens_long)
+#plot
+plot_special_matrix(sens_summary, m, "Sensitivity matrix — mean", "#1565C0")
+```
+
+### Elasticity matrix - sd
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+plot_special_matrix(elas_summary, sdt, "Elasticity matrix — sd","orange")
+```
+
+
+### Sensitivity matrix - sd
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+plot_special_matrix(sens_summary, sdt, "Sensitivity matrix — sd", "orange")
+```
+
+:::
+
+## Overall cumulative elasticity, setting-specific cumulative elasticity, Dominant eigenvalue (Rt), right eigenvector (relative incidence) and q-susceptibility
+::: {.panel-tabset}
+
+```{r}
+# ── Helper: extract any vector of results (e.g., q-susceptibility, cumulative elasticity)───────────────
+extract_vector <- function(result_name, element_labels) {
+  map_dfr(1:opt$nperiods, function(p) {
+    map_dfr(1:config$study$n_sample, function(s) {
+      vec <- results[[p]][[result_name]][[s]]
+      tibble(
+        period  = p,
+        sample  = s,
+        element = factor(element_labels, levels = element_labels),
+        value   = vec
+      )
+    })
+  })
+}
+
+# ── Summary helper ───────────────────────────────────────────────────────────────
+summarise_vector <- function(df) {
+  df %>%
+    group_by(period, element) %>%
+    summarise(
+      median  = median(value, na.rm = TRUE),
+      p2.5  = quantile(value, 0.025, na.rm = TRUE),
+      p97.5 = quantile(value, 0.975, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
+# ── Plot helper ───────────────────────────────────────────────────────────────
+plot_vector_summary <- function(df, title) {
+  df %>%
+    ggplot(aes(x = period, y = median, group = element, color = element, fill = element)) +
+    geom_ribbon(aes(ymin = p2.5, ymax = p97.5), alpha = 0.2, color = NA) +
+    #geom_errorbar(aes(ymin = p2.5, ymax = p97.5), width = 0.7,linewidth = 0.8) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 1.5) +
+    scale_x_continuous(breaks = 1:opt$nperiods) +
+    scale_color_manual(values = pal) +
+    scale_fill_manual(values = pal) +
+    labs(
+      title = title,
+      x     = "Period",
+      y     = "Value",
+      color = "",
+      fill  = ""
+    ) +
+    theme_minimal(base_size = 11) +
+    theme(
+      panel.grid.minor = element_blank(),
+      legend.position  = "bottom"
+    )
+}
+```
+
+
+### Cumulative elasticity
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract cumulative elasticity
+cum_elasti_long <- extract_vector("cum_elasti", config$study$age_groups)
+
+# summaries
+cum_elasti_summary <- summarise_vector(cum_elasti_long)
+
+#plot
+plot_vector_summary(cum_elasti_summary, "cum_elasti — Median with 95% CI across samples")
+```
+
+### Setting-specific cumulative elasticity
+```{r , echo = FALSE,message=FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract setting-specific cumulative elasticity
+cum_elasti_set_long <- extract_vector("elas_set", names(results$`1`$elas_set[[1]]))
+# summaries
+elas_set_summary <- summarise_vector(cum_elasti_set_long)
+#plot
+plot_vector_summary(elas_set_summary, "cum_elas_set — Median with 95% CI across samples")+
+  scale_color_manual(values = social_palette) +
+  scale_fill_manual(values = social_palette)
+```
+
+### Rt (dominant eigenvalue of NGM)
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract rt
+rt_ngm_long <- map_dfr(1:opt$nperiods, function(p){
+                map_dfr(1:config$study$n_sample, function(s) {
+                    rt <- results[[p]]$eigen[[s]]$value
+                    tibble(
+                        period = p,
+                        sample = s,
+                        rt = rt
+                    )
+                })
+})
+
+
+
+# check if Rt is the same across samples
+table(round(rt_ngm_long$rt,6),rt_ngm_long$period) # similar at 6 decimals, so we can just take the first sample for each period
+rt_long_f <- rt_ngm_long %>% group_by(period) %>%
+  slice(1) %>%
+  ungroup()
+
+# # confirm that this matches the rt from inputs
+# all(round(rt_long$rt,4)==round(rt_long_f$rt,4)) # matches perfectly
+
+rt_long_f$sample=NULL
+
+# plot rt
+rt_long_f %>%
+  ggplot(aes(x = period, y = rt)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  scale_x_continuous(breaks = 1:opt$nperiods) +
+  labs(title = "Dominant eigenvalue over time (Rt)", x = "Period", y = "Rt") +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank())
+```
+
+### Right eigenvector (relative incidence by age group)
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract right eigenvector
+w_long <-map_dfr(1:opt$nperiods, function(p) {
+                  map_dfr(1:config$study$n_sample, function(s) {
+                    vec <- results[[p]]$eigen[[s]]$w
+                    tibble(
+                      period  = p,
+                      sample  = s,
+                      element = factor(config$study$age_groups, levels = config$study$age_groups),
+                      value   = vec
+      )
+    })
+  })
+# # check that w sums to 1
+# w_long %>%
+#   group_by(period, sample) %>%
+#   summarise(sum_w = sum(value)) # sums to 1 for all samples and periods 
+# # checks out
+
+# plot w
+w_long %>% 
+  ggplot(aes(x = period, y = value, group = element, color = element)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:opt$nperiods) +
+  scale_color_manual(values = pal) +
+  scale_fill_manual(values = pal) +
+  labs(title = "Right eigenvector (relative incidence)", x = "Period", y = "Relative Incidence") +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank())
+
+```
+
+### Q-susceptibility
+```{r , echo = FALSE, fig.width=10, fig.height=8, fig.dpi=300}
+# extract q-susceptibility
+q_susc_long     <- extract_vector("q_susc",     config$study$age_groups)
+
+# summaries
+q_susc_summary   <- summarise_vector(q_susc_long)
+
+#plot
+plot_vector_summary(q_susc_summary,     "q_susc — Median with 95% CI across samples")
+```
+:::
+
+```{r}
+# compile and save necessary information for analysis: rt_long_f, elas_set_summary and cum_elas_summary
+rt_long_f 
+elas_set_summary$element = fct_relabel(elas_set_summary$element, ~ str_sub(.x, 3))
+elas_set_summary %>% select(-p2.5, -p97.5) %>% pivot_wider(names_from = element, values_from = c(median)) -> elas_set_summary_wide
+# test to see how closer the medians are to 1
+elas_set_summary %>% 
+  group_by(period) %>%
+  summarise(sum(median)) # very good
+
+cum_elasti_summary %>% select(-p2.5, -p97.5) %>% pivot_wider(names_from = element, values_from = c(median)) -> cum_elasti_summary_wide
+# test to see how closer the medians are to 1
+cum_elasti_summary %>% 
+  group_by(period) %>%
+  summarise(sum(median)) # very good
+
+results_summary <- rt_long_f %>%
+  left_join(elas_set_summary_wide, by = "period") %>%
+  left_join(cum_elasti_summary_wide, by = "period")
+# save final summary as RDS file
+out_file_results_summary <- file.path(config$results_path,paste0("result_summary_",opt$country,"_",max(periods$period),"_",min(periods$start),"_to_",max(periods$start),".rds"))
+saveRDS(results_summary, file = out_file_results_summary)
+```
+

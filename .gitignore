@@ -6,6 +6,7 @@
 .RDataTmp
 *.Rproj
 
+
 # Data files — common formats
 data/
 *.csv
